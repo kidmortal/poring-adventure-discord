@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Socket } from 'socket.io-client';
 import { io } from 'socket.io-client';
+import { RegisterDiscordProfilePayload } from './dto/register';
 
 async function asyncEmit<T>(
   ws: Socket,
@@ -16,9 +17,7 @@ async function asyncEmit<T>(
 
 @Injectable()
 export class ApiService {
-  private socket = io(process.env.WEBSOCKET_API_URL, {
-    auth: { acessToken: '' },
-  });
+  private socket = io(process.env.WEBSOCKET_API_URL);
   constructor() {
     this.socket.on('connect', () => {
       console.log('connected');
@@ -34,5 +33,20 @@ export class ApiService {
 
   getUserProfile(args: { discordId: string }) {
     return asyncEmit<string>(this.socket, 'get_discord_user', args.discordId);
+  }
+
+  registerDiscordProfile(args: RegisterDiscordProfilePayload) {
+    return asyncEmit<PoringUserProfile | undefined>(
+      this.socket,
+      'register_discord_profile',
+      args,
+    );
+  }
+  getUserInventory(args: { discordId: string }) {
+    return asyncEmit<any[]>(
+      this.socket,
+      'get_discord_user_inventory',
+      args.discordId,
+    );
   }
 }

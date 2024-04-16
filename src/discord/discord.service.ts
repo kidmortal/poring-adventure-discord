@@ -82,11 +82,32 @@ export class DiscordService {
       }
     });
     const response = await this.rest.put(
-      Routes.applicationCommands(process.env.CLIENT_ID),
+      Routes.applicationGuildCommands(
+        process.env.CLIENT_ID,
+        '746324655710797854',
+      ),
       {
         body: commands,
       },
     );
+    console.log(response);
+    return true;
+  }
+
+  async removeSlashCommands() {
+    const response = await this.rest.put(
+      Routes.applicationGuildCommands(
+        process.env.CLIENT_ID,
+        '746324655710797854',
+      ),
+      {
+        body: [],
+      },
+    );
+
+    await this.rest.put(Routes.applicationCommands(process.env.CLIENT_ID), {
+      body: [],
+    });
     console.log(response);
     return true;
   }

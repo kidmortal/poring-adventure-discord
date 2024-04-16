@@ -9,4 +9,8 @@ export class DiscordController {
   registerSlashCommands() {
     return this.discordService.registerSlashCommands();
   }
+  @Get('/remove')
+  removeSlashCommands() {
+    return this.discordService.removeSlashCommands();
+  }
 }
