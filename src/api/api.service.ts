@@ -3,11 +3,7 @@ import { Socket } from 'socket.io-client';
 import { io } from 'socket.io-client';
 import { RegisterDiscordProfilePayload } from './dto/register';
 
-async function asyncEmit<T>(
-  ws: Socket,
-  event: string,
-  args: number | string | object,
-): Promise<T> {
+async function asyncEmit<T>(ws: Socket, event: string, args: number | string | object): Promise<T> {
   return new Promise(function (resolve) {
     ws.emit(event, args, (response: T) => {
       resolve(response);
@@ -32,21 +28,13 @@ export class ApiService {
   }
 
   getUserProfile(args: { discordId: string }) {
-    return asyncEmit<string>(this.socket, 'get_discord_user', args.discordId);
+    return asyncEmit<PoringUserProfile>(this.socket, 'get_discord_user', args.discordId);
   }
 
   registerDiscordProfile(args: RegisterDiscordProfilePayload) {
-    return asyncEmit<PoringUserProfile | undefined>(
-      this.socket,
-      'register_discord_profile',
-      args,
-    );
+    return asyncEmit<PoringUserProfile | undefined>(this.socket, 'register_discord_profile', args);
   }
   getUserInventory(args: { discordId: string }) {
-    return asyncEmit<any[]>(
-      this.socket,
-      'get_discord_user_inventory',
-      args.discordId,
-    );
+    return asyncEmit<any[]>(this.socket, 'get_discord_user_inventory', args.discordId);
   }
 }

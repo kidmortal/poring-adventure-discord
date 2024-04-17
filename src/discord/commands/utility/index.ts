@@ -1,28 +1,20 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
 import { DiscordSlashCommand } from '..';
+import { ImageDrawerService } from 'src/utilities/imageDrawer';
 
 export const UtilityCommands: DiscordSlashCommand[] = [
   {
-    data: new SlashCommandBuilder()
-      .setName('ping')
-      .setDescription('Replies with Pong!'),
+    data: new SlashCommandBuilder().setName('ping').setDescription('Replies with Pong!'),
     async execute({ interaction }) {
       const user = interaction.user;
       const url = interaction.user.avatarURL();
-      await interaction.reply(
-        JSON.stringify({ name: user.username, id: user.id, url }),
-      );
+      await interaction.reply(JSON.stringify({ name: user.username, id: user.id, url }));
     },
   },
   {
     data: new SlashCommandBuilder()
       .setName('register')
-      .addStringOption((option) =>
-        option
-          .setName('token')
-          .setDescription('Your integration token')
-          .setRequired(true),
-      )
+      .addStringOption((option) => option.setName('token').setDescription('Your integration token').setRequired(true))
       .setDescription('Sync discord user with Poring profile'),
     async execute({ interaction, api }) {
       const user = interaction.user;
@@ -35,23 +27,19 @@ export const UtilityCommands: DiscordSlashCommand[] = [
         token: token,
       });
       if (result) {
-        await interaction.reply(
-          `Account sync with profile ${result.name} character`,
-        );
+        await interaction.reply(`Account sync with profile ${result.name} character`);
       } else {
         await interaction.reply('Failed to register');
       }
     },
   },
   {
-    data: new SlashCommandBuilder()
-      .setName('user')
-      .setDescription('Provides information about the user.'),
+    data: new SlashCommandBuilder().setName('user').setDescription('Provides information about the user.'),
     async execute({ interaction, api }) {
-      const response = await api.getUserProfile({
-        discordId: interaction.user.id,
-      });
-      await interaction.reply(JSON.stringify(response));
+      const response = await api.getUserProfile({ discordId: interaction.user.id });
+      const buffer = await ImageDrawerService.drawUserCharacter({ user: response });
+      const attachment = new AttachmentBuilder(buffer);
+      await interaction.reply({ files: [attachment], content: `Name: ${response.name} - Silver ${response.silver}` });
     },
   },
   {
