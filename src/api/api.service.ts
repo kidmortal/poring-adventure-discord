@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Socket } from 'socket.io-client';
 import { io } from 'socket.io-client';
 import { RegisterDiscordProfilePayload } from './dto/register';
+import { createHash } from 'crypto';
 
 async function asyncEmit<T>(ws: Socket, event: string, args: number | string | object): Promise<T> {
   return new Promise(function (resolve) {
@@ -13,7 +14,9 @@ async function asyncEmit<T>(ws: Socket, event: string, args: number | string | o
 
 @Injectable()
 export class ApiService {
-  private socket = io(process.env.WEBSOCKET_API_URL);
+  private socket = io(process.env.WEBSOCKET_API_URL, {
+    auth: { accessToken: createHash('md5').update(process.env.DISCORD_API_TOKEN).digest('hex') },
+  });
   constructor() {
     this.socket.on('connect', () => {
       console.log('connected');
