@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
 import { DiscordSlashCommand } from '..';
 import { ImageDrawerService } from 'src/utilities/imageDrawer';
+import { CaptchaActions } from 'src/discord/components/CaptchaActions';
 
 export const UtilityCommands: DiscordSlashCommand[] = [
   {
@@ -16,11 +17,12 @@ export const UtilityCommands: DiscordSlashCommand[] = [
       .setName('register')
       .addStringOption((option) => option.setName('token').setDescription('Your integration token').setRequired(true))
       .setDescription('Sync discord user with Poring profile'),
-    async execute({ interaction, api }) {
+    async execute({ interaction, discord }) {
+      const apiService = discord.apiService;
       const user = interaction.user;
       const token = interaction.options.getString('token');
       const url = interaction.user.avatarURL();
-      const result = await api.registerDiscordProfile({
+      const result = await apiService.registerDiscordProfile({
         name: user.username,
         id: user.id,
         url: url,
@@ -35,20 +37,34 @@ export const UtilityCommands: DiscordSlashCommand[] = [
   },
   {
     data: new SlashCommandBuilder().setName('user').setDescription('Provides information about the user.'),
-    async execute({ interaction, api }) {
-      const response = await api.getUserProfile({ discordId: interaction.user.id });
+    async execute({ interaction, discord }) {
+      const apiService = discord.apiService;
+      const response = await apiService.getUserProfile({ discordId: interaction.user.id });
       const buffer = await ImageDrawerService.drawUserCharacter({ user: response });
       const attachment = new AttachmentBuilder(buffer);
       await interaction.reply({ files: [attachment], content: `Name: ${response.name} - Silver ${response.silver}` });
     },
   },
   {
+    data: new SlashCommandBuilder().setName('captcha').setDescription('Shows a captcha image'),
+    async execute({ interaction }) {
+      const buffer = await ImageDrawerService.drawAmongus();
+      const attachment = new AttachmentBuilder(buffer);
+      await interaction.reply({
+        files: [attachment],
+        components: [CaptchaActions()],
+        content: `Describe the captcha image`,
+      });
+    },
+  },
+  {
     data: new SlashCommandBuilder()
       .setName('inventory')
       .setDescription('Provides information about the user inventory.'),
-    async execute({ interaction, api }) {
+    async execute({ interaction, discord }) {
+      const apiService = discord.apiService;
       let items = '';
-      const response = await api.getUserInventory({
+      const response = await apiService.getUserInventory({
         discordId: interaction.user.id,
       });
       response.forEach((item) => {

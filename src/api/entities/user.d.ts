@@ -20,6 +20,32 @@ declare type BattleUser = User & {
   aggro?: number;
 };
 
+declare type LearnedSkill = {
+  id: number;
+  userEmail: string;
+  skillId: number;
+  masteryLevel: number;
+  equipped: boolean;
+  skill: Skill;
+  cooldown: number;
+};
+
+declare type Skill = {
+  id: number;
+  requiredLevel: number;
+  manaCost: number;
+  cooldown: number;
+  category: string;
+  effect?: string;
+  name: string;
+  image: string;
+  description: string;
+  attribute: string;
+  multiplier: number;
+  professionId: number;
+  buffId?: number;
+};
+
 declare type Stats = {
   id: number;
   level: number;

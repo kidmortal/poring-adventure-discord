@@ -16,9 +16,10 @@ import { DiscordContextCommand, getContextCommands } from './context';
 
 @Injectable()
 export class DiscordService {
+  private onGoingBattles: { [key: string]: UserBattle } = {};
   discord = new Client({ intents: [GatewayIntentBits.Guilds] });
   private rest = new REST({ version: '10' }).setToken(process.env.DISCORD_API_TOKEN);
-  constructor(private readonly api: ApiService) {
+  constructor(readonly apiService: ApiService) {
     this.discord.login(process.env.DISCORD_API_TOKEN);
     this.discord.on('ready', () => {
       console.log(`Logged in as ${this.discord.user.tag}!`);
@@ -54,26 +55,16 @@ export class DiscordService {
   }
 
   async registerSlashCommands() {
-    const commands = [];
     const slashCommands = getSlashCommands();
     const contextCommands = getContextCommands();
-    slashCommands.forEach((command) => {
-      if (command.data && command.execute) {
-        commands.push(command.data.toJSON());
-      } else {
-        console.log(`[WARNING] The command is missing a required "data" or "execute" property.`);
-      }
-    });
-    contextCommands.forEach((command) => {
-      if (command.data && command.execute) {
-        commands.push(command.data.toJSON());
-      } else {
-        console.log(`[WARNING] The command is missing a required "data" or "execute" property.`);
-      }
-    });
+    const commands = [...slashCommands, ...contextCommands]
+      .filter((command) => command.data && command.execute)
+      .map((command) => command.data.toJSON());
+
     const response = await this.rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, '746324655710797854'), {
       body: commands,
     });
+
     console.log(response);
     return true;
   }
@@ -98,7 +89,7 @@ export class DiscordService {
     }
 
     try {
-      await command.execute({ interaction, api: this.api });
+      await command.execute({ interaction, apiService: this.apiService, discord: this });
     } catch (error) {
       console.error(error);
       if (interaction.replied || interaction.deferred) {
@@ -123,7 +114,7 @@ export class DiscordService {
     }
 
     try {
-      await command.execute({ interaction, api: this.api });
+      await command.execute({ interaction, discord: this });
     } catch (error) {
       console.error(error);
       if (interaction.replied || interaction.deferred) {
@@ -137,6 +128,17 @@ export class DiscordService {
           ephemeral: true,
         });
       }
+    }
+  }
+  private async _pushBattleToOnGoingBattle(args: { messageId: string; battle: UserBattle }) {
+    const { messageId, battle } = args;
+
+    if (messageId in this.onGoingBattles) {
+      // Property already exists, update the value
+      this.onGoingBattles[messageId] = battle;
+    } else {
+      // Property doesn't exist, create a new entry
+      this.onGoingBattles[messageId] = battle;
     }
   }
 }

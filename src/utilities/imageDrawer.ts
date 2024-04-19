@@ -29,6 +29,20 @@ async function imageBufferToFile(args: { imageBuffer: Buffer }) {
   fs.writeFileSync('./image.png', args.imageBuffer);
 }
 
+async function drawAmongus() {
+  const width = 70;
+  const height = 120;
+
+  const canvas = createCanvas(width, height);
+  const context = canvas.getContext('2d');
+  const amongus = await loadImageUrl('https://cdn.discordapp.com/emojis/944243756545232946.png');
+
+  context.drawImage(amongus, 0, 0, 70, 70);
+
+  const buffer = canvas.toBuffer('image/png');
+  return buffer;
+}
+
 async function drawUserCharacter(args: { user: PoringUserProfile }) {
   const { gender, head, costume } = args.user.appearance;
   const headUrl = `https://kidmortal.sirv.com/heads/${gender}/${head}/front.png`;
@@ -41,4 +55,5 @@ async function drawUserCharacter(args: { user: PoringUserProfile }) {
 export const ImageDrawerService = {
   drawImageToBuffer,
   drawUserCharacter,
+  drawAmongus,
 };

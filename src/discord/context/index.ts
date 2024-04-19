@@ -2,10 +2,15 @@ import { ContextMenuCommandBuilder, UserContextMenuCommandInteraction } from 'di
 
 import { ApiService } from 'src/api/api.service';
 import { PartyCommands } from './party';
+import { DiscordService } from '../discord.service';
 
 export type DiscordContextCommand = {
   data: ContextMenuCommandBuilder;
-  execute: (args: { interaction: UserContextMenuCommandInteraction; api: ApiService }) => Promise<void>;
+  execute: (args: {
+    interaction: UserContextMenuCommandInteraction;
+    apiService: ApiService;
+    discord: DiscordService;
+  }) => Promise<void>;
 };
 
 export function getContextCommands(): DiscordContextCommand[] {

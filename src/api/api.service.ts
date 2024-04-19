@@ -1,7 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Socket } from 'socket.io-client';
 import { io } from 'socket.io-client';
-import { RegisterDiscordProfilePayload } from './dto/register';
 import { createHash } from 'crypto';
 
 async function asyncEmit<T>(ws: Socket, event: string, args: number | string | object): Promise<T> {
@@ -17,6 +16,7 @@ export class ApiService {
   private socket = io(process.env.WEBSOCKET_API_URL, {
     auth: { accessToken: createHash('md5').update(process.env.DISCORD_API_TOKEN).digest('hex') },
   });
+  private logger = new Logger();
   constructor() {
     this.socket.on('connect', () => {
       console.log('connected');
@@ -28,13 +28,17 @@ export class ApiService {
     this.socket.on('connect_error', () => {
       console.log('error');
     });
+    this.socket.on('error_notification', (message) => this.logger.error(message));
   }
 
-  getUserProfile(args: { discordId: string }) {
-    return asyncEmit<PoringUserProfile>(this.socket, 'get_discord_user', args.discordId);
+  getUserProfile(dto: GetDiscordUserDto) {
+    return asyncEmit<PoringUserProfile>(this.socket, 'get_discord_user', dto);
+  }
+  getUserBattle(dto: GetDiscordBattleDto) {
+    return asyncEmit<UserBattle>(this.socket, 'get_discord_battle', dto);
   }
 
-  registerDiscordProfile(args: RegisterDiscordProfilePayload) {
+  registerDiscordProfile(args: RegisterDiscordProfileDto) {
     return asyncEmit<PoringUserProfile | undefined>(this.socket, 'register_discord_profile', args);
   }
   getUserInventory(args: { discordId: string }) {
