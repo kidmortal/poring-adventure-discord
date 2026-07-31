@@ -15,7 +15,7 @@ declare type PoringUserProfile = {
   guildMember?: GuildMember;
 };
 
-declare type BattleUser = User & {
+declare type BattleUser = PoringUserProfile & {
   isDead?: boolean;
   aggro?: number;
 };
@@ -70,9 +70,11 @@ declare type Appearance = {
 };
 
 declare type Party = {
-  id?: number;
-  leaderEmail?: string;
-  members?: User[];
+  id: number;
+  leaderEmail: string;
+  members?: PoringUserProfile[];
+  chat?: string[];
+  open?: boolean;
 };
 
 declare type UserBuff = {

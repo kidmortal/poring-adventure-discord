@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  ButtonInteraction,
   CacheType,
   ChatInputCommandInteraction,
   Client,
@@ -11,8 +12,10 @@ import {
 } from 'discord.js';
 
 import { DiscordSlashCommand, getSlashCommands } from './commands';
-import { ApiService } from 'src/api/api.service';
+import { ApiError, ApiService } from 'src/api/api.service';
 import { DiscordContextCommand, getContextCommands } from './context';
+import { BATTLE_ATTACK_ID, BATTLE_FLEE_ID, BattleActions } from './components/BattleActions';
+import { BattleEmbed } from './components/BattleEmbed';
 
 @Injectable()
 export class DiscordService {
@@ -51,7 +54,34 @@ export class DiscordService {
     this.discord.on('interactionCreate', async (interaction) => {
       if (interaction.isChatInputCommand()) this._handleSlashCommand({ interaction });
       if (interaction.isUserContextMenuCommand()) this._handleContextCommand({ interaction });
+      if (interaction.isButton()) this._handleButton({ interaction });
     });
+  }
+
+  /** The battle message keeps its buttons live so a fight can be played without retyping commands. */
+  private async _handleButton({ interaction }: { interaction: ButtonInteraction<CacheType> }) {
+    const { customId } = interaction;
+    if (customId !== BATTLE_ATTACK_ID && customId !== BATTLE_FLEE_ID) return;
+
+    try {
+      await interaction.deferUpdate();
+
+      if (customId === BATTLE_FLEE_ID) {
+        await this.apiService.resetBattle({ discordId: interaction.user.id });
+        await interaction.editReply({ content: 'You left the battle', embeds: [], components: [] });
+        return;
+      }
+
+      const battle = await this.apiService.attack({ discordId: interaction.user.id });
+      if (!battle) {
+        await interaction.editReply({ content: 'The battle is over', embeds: [], components: [] });
+        return;
+      }
+
+      await interaction.editReply({ embeds: [BattleEmbed({ battle })], components: [BattleActions({ battle })] });
+    } catch (error) {
+      await this._replyWithError({ interaction, error });
+    }
   }
 
   async registerSlashCommands() {
@@ -89,20 +119,10 @@ export class DiscordService {
     }
 
     try {
+      await interaction.deferReply();
       await command.execute({ interaction, apiService: this.apiService, discord: this });
     } catch (error) {
-      console.error(error);
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({
-          content: 'There was an error while executing this command!',
-          ephemeral: true,
-        });
-      } else {
-        await interaction.reply({
-          content: 'There was an error while executing this command!',
-          ephemeral: true,
-        });
-      }
+      await this._replyWithError({ interaction, error });
     }
   }
 
@@ -114,20 +134,36 @@ export class DiscordService {
     }
 
     try {
+      await interaction.deferReply();
       await command.execute({ interaction, discord: this });
     } catch (error) {
-      console.error(error);
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({
-          content: 'There was an error while executing this command!',
-          ephemeral: true,
-        });
+      await this._replyWithError({ interaction, error });
+    }
+  }
+
+  /** API failures carry a player-facing reason, so show it instead of a generic message. */
+  private async _replyWithError(args: {
+    interaction:
+      | ChatInputCommandInteraction<CacheType>
+      | UserContextMenuCommandInteraction<CacheType>
+      | ButtonInteraction<CacheType>;
+    error: unknown;
+  }) {
+    const { interaction, error } = args;
+    const content =
+      error instanceof ApiError ? `❌ ${error.message}` : 'There was an error while executing this command!';
+    console.error(error);
+
+    try {
+      if (interaction.deferred) {
+        await interaction.editReply({ content });
+      } else if (interaction.replied) {
+        await interaction.followUp({ content, ephemeral: true });
       } else {
-        await interaction.reply({
-          content: 'There was an error while executing this command!',
-          ephemeral: true,
-        });
+        await interaction.reply({ content, ephemeral: true });
       }
+    } catch (replyError) {
+      console.error(replyError);
     }
   }
   private async _pushBattleToOnGoingBattle(args: { messageId: string; battle: UserBattle }) {

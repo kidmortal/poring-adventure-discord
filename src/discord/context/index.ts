@@ -1,7 +1,7 @@
 import { ContextMenuCommandBuilder, UserContextMenuCommandInteraction } from 'discord.js';
 
 import { ApiService } from 'src/api/api.service';
-import { PartyCommands } from './party';
+import { PartyContextCommands } from './party';
 import { DiscordService } from '../discord.service';
 
 export type DiscordContextCommand = {
@@ -14,7 +14,5 @@ export type DiscordContextCommand = {
 };
 
 export function getContextCommands(): DiscordContextCommand[] {
-  const commands: DiscordContextCommand[] = [];
-  commands.push(...PartyCommands);
-  return commands;
+  return [...PartyContextCommands];
 }
