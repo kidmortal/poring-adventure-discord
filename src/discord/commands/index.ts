@@ -10,11 +10,12 @@ import { PartyCommands } from './party';
 import { MailCommands } from './mail';
 import { SkillCommands } from './skills';
 import { DiscordService } from '../discord.service';
+import { CommandPermissions } from '../commandPermissions';
 
 /** Adding an option drops the subcommand methods, so commands with options land on this shape. */
 export type SlashCommandData = Omit<SlashCommandBuilder, 'addSubcommand' | 'addSubcommandGroup'>;
 
-export type DiscordSlashCommand = {
+export type DiscordSlashCommand = CommandPermissions & {
   data: SlashCommandData;
   execute: (args: { interaction: ChatInputCommandInteraction; discord: DiscordService }) => Promise<void>;
 };

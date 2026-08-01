@@ -1,53 +1,39 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   ButtonInteraction,
   CacheType,
   ChatInputCommandInteraction,
   Client,
-  Collection,
   GatewayIntentBits,
   REST,
   Routes,
   UserContextMenuCommandInteraction,
 } from 'discord.js';
 
-import { DiscordSlashCommand, getSlashCommands } from './commands';
 import { ApiError, ApiService } from 'src/api/api.service';
-import { DiscordContextCommand, getContextCommands } from './context';
 import { BATTLE_ATTACK_ID, BATTLE_FLEE_ID, BattleActions } from './components/BattleActions';
 import { BattleEmbed } from './components/BattleEmbed';
+import { CommandRegistry } from './commandRegistry';
+
+/** Which deployment to touch. Omit both to use `DISCORD_GUILD_ID`. */
+export type CommandScope = { guildId?: string; global?: boolean };
 
 @Injectable()
 export class DiscordService {
-  private onGoingBattles: { [key: string]: UserBattle } = {};
   discord = new Client({ intents: [GatewayIntentBits.Guilds] });
+  /** Built eagerly so a duplicate or malformed command fails the boot, not a player's interaction. */
+  private readonly registry = new CommandRegistry();
+  private readonly logger = new Logger('DiscordService');
   private rest = new REST({ version: '10' }).setToken(process.env.DISCORD_API_TOKEN);
+
   constructor(readonly apiService: ApiService) {
     this.discord.login(process.env.DISCORD_API_TOKEN);
     this.discord.on('ready', () => {
-      console.log(`Logged in as ${this.discord.user.tag}!`);
+      this.logger.log(`Logged in as ${this.discord.user.tag}`);
     });
 
-    this.slashCommandListeners();
+    this.logger.log(`Serving ${this.registry.slash.size} slash and ${this.registry.context.size} context commands`);
     this.interactionHandler();
-  }
-
-  async slashCommandListeners() {
-    const contextCommands = getContextCommands();
-    const slashCommands = getSlashCommands();
-    this.discord.commands = new Collection();
-    slashCommands.forEach((command) => {
-      if (command.data && command.execute) {
-        console.log(`Listening command ${command.data.name}`);
-        this.discord.commands.set(command.data.name, command);
-      }
-    });
-    contextCommands.forEach((command) => {
-      if (command.data && command.execute) {
-        console.log(`Listening context ${command.data.name}`);
-        this.discord.commands.set(command.data.name, command);
-      }
-    });
   }
 
   async interactionHandler() {
@@ -84,37 +70,62 @@ export class DiscordService {
     }
   }
 
-  async registerSlashCommands() {
-    const slashCommands = getSlashCommands();
-    const contextCommands = getContextCommands();
-    const commands = [...slashCommands, ...contextCommands]
-      .filter((command) => command.data && command.execute)
-      .map((command) => command.data.toJSON());
-
-    const response = await this.rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, '746324655710797854'), {
-      body: commands,
-    });
-
-    console.log(response);
-    return true;
+  /** What the bot would deploy, without touching Discord. */
+  describeCommands() {
+    return { count: this.registry.size, commands: this.registry.describe() };
   }
 
-  async removeSlashCommands() {
-    const response = await this.rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, '746324655710797854'), {
-      body: [],
-    });
+  /**
+   * Deploys to a guild when a guild id is available — those apply instantly,
+   * which is what you want while iterating. A global deployment reaches every
+   * server the bot is in but can take up to an hour to propagate.
+   */
+  async registerSlashCommands(args?: CommandScope) {
+    const guildId = this._resolveGuildId(args);
+    const body = this.registry.toPayload({ global: !guildId });
+    const route = this._route({ guildId });
 
-    await this.rest.put(Routes.applicationCommands(process.env.CLIENT_ID), {
-      body: [],
-    });
-    console.log(response);
-    return true;
+    await this.rest.put(route, { body });
+    this.logger.log(`Registered ${body.length} commands ${guildId ? `to guild ${guildId}` : 'globally'}`);
+
+    return {
+      scope: guildId ? 'guild' : 'global',
+      guildId: guildId ?? null,
+      count: body.length,
+      commands: this.registry.describe(),
+    };
+  }
+
+  /** Clears one scope only — a guild deployment and the global one are separate lists. */
+  async removeSlashCommands(args?: CommandScope) {
+    const guildId = this._resolveGuildId(args);
+
+    await this.rest.put(this._route({ guildId }), { body: [] });
+    this.logger.log(`Removed all commands ${guildId ? `from guild ${guildId}` : 'globally'}`);
+
+    return { scope: guildId ? 'guild' : 'global', guildId: guildId ?? null, count: 0 };
+  }
+
+  /** An explicit `global` beats the configured guild default; otherwise the guild wins. */
+  private _resolveGuildId(args?: CommandScope) {
+    if (args?.global) return undefined;
+    return args?.guildId || process.env.DISCORD_GUILD_ID || undefined;
+  }
+
+  private _route(args: { guildId?: string }) {
+    const clientId = process.env.CLIENT_ID;
+    if (!clientId) {
+      throw new Error('CLIENT_ID is not set, cannot manage slash commands');
+    }
+    return args.guildId
+      ? Routes.applicationGuildCommands(clientId, args.guildId)
+      : Routes.applicationCommands(clientId);
   }
 
   private async _handleContextCommand({ interaction }: { interaction: UserContextMenuCommandInteraction<CacheType> }) {
-    const command: DiscordContextCommand = interaction.client.commands.get(interaction.commandName);
+    const command = this.registry.context.get(interaction.commandName);
     if (!command) {
-      console.error(`No command matching ${interaction.commandName} was found.`);
+      this.logger.error(`No context command matching '${interaction.commandName}' was found`);
       return;
     }
 
@@ -127,9 +138,9 @@ export class DiscordService {
   }
 
   private async _handleSlashCommand({ interaction }: { interaction: ChatInputCommandInteraction<CacheType> }) {
-    const command: DiscordSlashCommand = interaction.client.commands.get(interaction.commandName);
+    const command = this.registry.slash.get(interaction.commandName);
     if (!command) {
-      console.error(`No command matching ${interaction.commandName} was found.`);
+      this.logger.error(`No slash command matching '${interaction.commandName}' was found`);
       return;
     }
 
@@ -152,7 +163,7 @@ export class DiscordService {
     const { interaction, error } = args;
     const content =
       error instanceof ApiError ? `❌ ${error.message}` : 'There was an error while executing this command!';
-    console.error(error);
+    this.logger.error(error);
 
     try {
       if (interaction.deferred) {
@@ -163,18 +174,7 @@ export class DiscordService {
         await interaction.reply({ content, ephemeral: true });
       }
     } catch (replyError) {
-      console.error(replyError);
-    }
-  }
-  private async _pushBattleToOnGoingBattle(args: { messageId: string; battle: UserBattle }) {
-    const { messageId, battle } = args;
-
-    if (messageId in this.onGoingBattles) {
-      // Property already exists, update the value
-      this.onGoingBattles[messageId] = battle;
-    } else {
-      // Property doesn't exist, create a new entry
-      this.onGoingBattles[messageId] = battle;
+      this.logger.error(replyError);
     }
   }
 }

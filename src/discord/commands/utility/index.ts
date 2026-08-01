@@ -2,6 +2,7 @@ import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
 import { DiscordSlashCommand } from '..';
 import { ImageDrawerService } from 'src/utilities/imageDrawer';
 import { CaptchaActions } from 'src/discord/components/CaptchaActions';
+import { HIDE_FROM_EVERYONE } from 'src/discord/commandPermissions';
 
 export const UtilityCommands: DiscordSlashCommand[] = [
   {
@@ -33,6 +34,8 @@ export const UtilityCommands: DiscordSlashCommand[] = [
   },
   {
     data: new SlashCommandBuilder().setName('captcha').setDescription('Shows a captcha image'),
+    // A debug toy rather than a game feature, so keep it out of the player's command list.
+    defaultMemberPermissions: HIDE_FROM_EVERYONE,
     async execute({ interaction }) {
       const buffer = await ImageDrawerService.drawAmongus();
       const attachment = new AttachmentBuilder(buffer);

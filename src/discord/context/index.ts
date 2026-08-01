@@ -3,8 +3,9 @@ import { ContextMenuCommandBuilder, UserContextMenuCommandInteraction } from 'di
 import { ApiService } from 'src/api/api.service';
 import { PartyContextCommands } from './party';
 import { DiscordService } from '../discord.service';
+import { CommandPermissions } from '../commandPermissions';
 
-export type DiscordContextCommand = {
+export type DiscordContextCommand = CommandPermissions & {
   data: ContextMenuCommandBuilder;
   execute: (args: {
     interaction: UserContextMenuCommandInteraction;
